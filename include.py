@@ -3,6 +3,7 @@ import sys
 
 cwd = os.getcwd()
 sys.path.append(cwd + '/pythongptoolbox/')
+sys.path.append('../pythongptoolbox/')
 sys.path.append(cwd + '/torchgptoolbox_nosparse/')
 
 # torch
@@ -15,7 +16,7 @@ from writeOBJ import writeOBJ
 from findIdx import findIdx
 from midPointUpsampling import midPointUpsampling
 
-# python standard 
+# python standard
 import numpy as np
 import scipy
 import scipy.sparse
@@ -26,16 +27,16 @@ import json
 import pickle as pickle
 
 
-class Mesh: 
+class Mesh:
     # store information of a mesh
     def __init__(self, V, F, hfList):
         """
         Inputs:
             V: nV-3 vertex list
             F: nF-3 face list
-            hfList: nHF-4 ordered vertex index of all half flaps 
-            
-            Notes: 
+            hfList: nHF-4 ordered vertex index of all half flaps
+
+            Notes:
             each half flap order looks like (see paper for the color scheme)
             [v_blue, v_red, v_purple, v_yellow]
         """
@@ -71,140 +72,15 @@ def processTrainShapes(folder):
         print('process meshes %d / %d' % (ii, nObjs))
         meshes_i = [None] * (nSubd + 1)
         for jj in range(nSubd + 1):
+            print(f'jj: {jj}, ii: {ii}')
             V, F = tgp.readOBJ(paths[jj] + objFiles[ii] + '.obj')
+            # V = tgp.normalizeUnitCube(V) * 2
             _, hfList = computeFlapList(V, F, 1)
             meshes_i[jj] = Mesh(V, F, hfList[0])
         meshes[ii] = list(meshes_i)
     print('num Subd: %d, num meshes: %d' % (nSubd, nObjs))
     return meshes
 
-class TrainMeshes: 
-    """
-    store information of many training meshes (see gendataPKL.py for usage)
-    """
-    def __init__(self, folders):
-        """
-        Inputs:
-            folders: list of folders that contain the meshes
-        """
-        nShape = len(folders)
-        self.meshes = []
-        for fIdx in range(nShape):
-            meshes = processTrainShapes(folders[fIdx])
-            for ii in range(len(meshes)):
-                self.meshes.append(meshes[ii])
-        self.nM = len(self.meshes)  # number of meshes
-        self.nS = len(self.meshes[0])  # number of subdivision levels
-
-        # initialize parameters required during training
-        self.hfList = None  # half flap index information
-        self.poolMats = None  # vertex one-ring pooling matrices
-        self.dofs = None  # vertex degrees of freedom
-        self.LCs = None  # vector of differential coordinates
-
-    def getInputData(self, mIdx):
-        """
-        get input data for the network
-        Inputs: 
-            mIdx: mesh index
-        """
-        input = torch.cat((
-            self.meshes[mIdx][0].V, # vertex positions
-            self.LCs[mIdx]), # vector of differential coordinates
-            dim=1)
-        return input 
-
-    def getHalfFlap(self):
-        """
-        create a list of half flap information, such that (see paper for the color scheme)
-        HF[meshIdx][subdIdx] = [v_blue, v_red, v_purple, v_yellow]
-        """
-        HF = [None] * self.nM
-        for ii in range(self.nM):
-            fifj = [None] * (self.nS - 1)
-            for jj in range(self.nS - 1):
-                idx = self.meshes[ii][jj].hfList[:, [0, 1, 2, 3]]
-                fifj[jj] = idx.reshape(-1, 4)
-            HF[ii] = list(fifj)
-        return HF
-
-    def getFlapPool(self, HF):
-        """
-        get the matrix for vertex one-ring average pooling (left two sub-figures in Fig.17)
-        Inputs:
-            HF: half flap list (see self.getHalfFlap())
-        """
-        nM = len(HF) # number of meshes
-        nS = len(HF[0]) # number of subdivision levels
-
-        poolFlap = [None] * nM
-        dof = [None] * nM
-        for ii in range(nM):
-            poolFlap_ij = [None] * nS
-            dof_ij = [None] * nS
-            for jj in range(nS):
-                hfIdx = HF[ii][jj]
-                nV = hfIdx[:, 0].max() + 1
-
-                rIdx = hfIdx[:, 0]
-                cIdx = torch.arange(hfIdx.size(0))
-                I = torch.cat([rIdx, cIdx], 0).reshape(2, -1)
-                val = torch.ones(hfIdx.size(0))
-                poolMat = torch.sparse.FloatTensor(I, val, torch.Size([nV, hfIdx.size(0)]))
-
-                rowSum = torch.sparse.sum(poolMat, dim=1).to_dense()
-
-                poolFlap_ij[jj] = poolMat
-                dof_ij[jj] = rowSum
-            poolFlap[ii] = list(poolFlap_ij) # one-ring pooling matrix
-            dof[ii] = list(dof_ij) # degrees of freedom per vertex
-        return poolFlap, dof
-
-    def getLaplaceCoordinate(self, hfList, poolMats, dofs):
-        """
-        get the vectors of the differential coordinates (see Fig.18)
-        Inputs:
-            hfList: half flap list (see self.getHalfFlap)
-            poolMats: vertex one-ring pooling matrix (see self.getFlapPool)
-            dofs: degrees of freedom per vertex (see self.getFlapPool)
-        """
-        LC = [None] * self.nM
-        for mIdx in range(self.nM):
-            V = self.meshes[mIdx][0].V
-            HF = hfList[mIdx][0]
-            poolMat = poolMats[mIdx][0]
-            dof = dofs[mIdx][0]
-            dV_he = V[HF[:, 0], :] - V[HF[:, 1], :]
-            dV_v = torch.spmm(poolMat, dV_he)
-            dV_v /= dof.unsqueeze(1)
-            LC[mIdx] = dV_v
-        return LC
-
-    def computeParameters(self):
-        """
-        pre-compute parameters required for network training. It includes:
-        hfList: list of half flaps
-        poolMats: vertex one-ring pooling 
-        LCs: vector of differential coordinates
-        """
-        self.hfList = self.getHalfFlap()
-        self.poolMats, self.dofs = self.getFlapPool(self.hfList)
-        self.LCs = self.getLaplaceCoordinate(self.hfList, self.poolMats, self.dofs)
-
-    def toDevice(self, device):
-        """
-        move information to CPU/GPU
-        """
-        for ii in range(self.nM):
-            for jj in range(self.nS):
-                self.meshes[ii][jj].V = self.meshes[ii][jj].V.to(device)
-                self.meshes[ii][jj].F = self.meshes[ii][jj].F.to(device)
-        for ii in range(self.nM):
-            self.LCs[ii] = self.LCs[ii].to(device)
-            for jj in range(self.nS - 1):
-                self.hfList[ii][jj] = self.hfList[ii][jj].to(device)
-                self.poolMats[ii][jj] = self.poolMats[ii][jj].to(device)
-                self.dofs[ii][jj] = self.dofs[ii][jj].to(device)
 
 def preprocessTestShapes(meshPathList, nSubd=2):
     """
@@ -228,6 +104,7 @@ def preprocessTestShapes(meshPathList, nSubd=2):
     print('num Subd: %d, num meshes: %d' % (nSubd, nObjs))
     return meshes
 
+
 class TestMeshes:
     def __init__(self, meshPathList, nSubd=2):
         """
@@ -248,14 +125,14 @@ class TestMeshes:
     def getInputData(self, mIdx):
         """
         get input data for the network
-        Inputs: 
+        Inputs:
             mIdx: mesh index
         """
         input = torch.cat((
-            self.meshes[mIdx][0].V,
-            self.LCs[mIdx]),
+            self.meshes[mIdx][0].V,  # vertex positions
+            self.LCs[mIdx]),  # vector of differential coordinates
             dim=1)
-        return input  # (nV x Din)
+        return [input, self.meshes[mIdx][0].F]
 
     def getHalfFlap(self):
         """
@@ -327,7 +204,7 @@ class TestMeshes:
         """
         pre-compute parameters required for network training. It includes:
         hfList: list of half flaps
-        poolMats: vertex one-ring pooling 
+        poolMats: vertex one-ring pooling
         LCs: vector of differential coordinates
         """
         self.hfList = self.getHalfFlap()
@@ -368,11 +245,12 @@ def computeFlapList(V, F, numSubd=2):
         # compute the subdivided vertex and face lists
         nV = V.size(0)
         VV, FF, S = tgp_midPointUp(V, F, 1)
+        # print(tgp_midPointUp(V, F, 1))
         rIdx = S._indices()[0, :]
         cIdx = S._indices()[1, :]
         val = S._values()
 
-        # only extract new vertices 
+        # only extract new vertices
         # Note: I order the vertex list as V = [oldV, newV]
         cIdx = cIdx[rIdx >= nV]
         val = val[rIdx >= nV]
@@ -381,7 +259,7 @@ def computeFlapList(V, F, numSubd=2):
 
         rIdx, idx = torch.sort(rIdx)
         cIdx = cIdx[idx]
-        rIdx = rIdx[::2]  
+        rIdx = rIdx[::2]
         cIdx = cIdx.view(-1, 2)
         # Note: Vodd = (V[cIdx[:,0],:] + V[cIdx[:,1],:]) / 2.0
 
@@ -425,7 +303,7 @@ def computeFlapList(V, F, numSubd=2):
         # [v_blue, v_red, v_purple, v_yellow]
         #    |
         #    V
-        # halfFlapIdx = 
+        # halfFlapIdx =
         # [v_blue, v_red, v_purple, v_yellow]
         # [v_red, v_blue, v_yellow, v_purple]
         #    |
@@ -465,9 +343,142 @@ def tgp_midPointUp(V, F, subdIter=1):
     SS = torch.sparse.FloatTensor(i, v, torch.Size(shape))
     return VV, FF, SS
 
+
+class TrainMeshes:
+    """
+    store information of many training meshes (see gendataPKL.py for usage)
+    """
+
+    def __init__(self, folders):
+        """
+        Inputs:
+            folders: list of folders that contain the meshes
+        """
+        nShape = len(folders)
+        self.meshes = []
+        for fIdx in range(nShape):
+            meshes = processTrainShapes(folders[fIdx])
+            for ii in range(len(meshes)):
+                self.meshes.append(meshes[ii])
+        self.nM = len(self.meshes)  # number of meshes
+        self.nS = len(self.meshes[0])  # number of subdivision levels
+
+        # initialize parameters required during training
+        self.hfList = None  # half flap index information
+        self.poolMats = None  # vertex one-ring pooling matrices
+        self.dofs = None  # vertex degrees of freedom
+        self.LCs = None  # vector of differential coordinates
+
+    def getInputData(self, mIdx):
+        """
+        get input data for the network
+        Inputs:
+            mIdx: mesh index
+        """
+        input = torch.cat((
+            self.meshes[mIdx][0].V,  # vertex positions
+            self.LCs[mIdx]),  # vector of differential coordinates
+            dim=1)
+        return [input, self.meshes[mIdx][0].F]
+
+    def getHalfFlap(self):
+        """
+        create a list of half flap information, such that (see paper for the color scheme)
+        HF[meshIdx][subdIdx] = [v_blue, v_red, v_purple, v_yellow]
+        """
+        HF = [None] * self.nM
+        for ii in range(self.nM):
+            fifj = [None] * (self.nS - 1)
+            for jj in range(self.nS - 1):
+                idx = self.meshes[ii][jj].hfList[:, [0, 1, 2, 3]]
+                fifj[jj] = idx.reshape(-1, 4)
+            HF[ii] = list(fifj)
+        return HF
+
+    def getFlapPool(self, HF):
+        """
+        get the matrix for vertex one-ring average pooling (left two sub-figures in Fig.17)
+        Inputs:
+            HF: half flap list (see self.getHalfFlap())
+        """
+        nM = len(HF)  # number of meshes
+        nS = len(HF[0])  # number of subdivision levels
+
+        poolFlap = [None] * nM
+        dof = [None] * nM
+        for ii in range(nM):
+            poolFlap_ij = [None] * nS
+            dof_ij = [None] * nS
+            for jj in range(nS):
+                hfIdx = HF[ii][jj]
+                # if not ii and not jj:
+                #     print(hfIdx)
+                nV = hfIdx[:, 0].max() + 1
+
+                rIdx = hfIdx[:, 0]
+                cIdx = torch.arange(hfIdx.size(0))
+                I = torch.cat([rIdx, cIdx], 0).reshape(2, -1)
+                val = torch.ones(hfIdx.size(0))
+                poolMat = torch.sparse.FloatTensor(I, val, torch.Size([nV, hfIdx.size(0)]))
+
+                rowSum = torch.sparse.sum(poolMat, dim=1).to_dense()
+
+                poolFlap_ij[jj] = poolMat
+                dof_ij[jj] = rowSum
+            poolFlap[ii] = list(poolFlap_ij)  # one-ring pooling matrix
+            dof[ii] = list(dof_ij)  # degrees of freedom per vertex
+        return poolFlap, dof
+
+    def getLaplaceCoordinate(self, hfList, poolMats, dofs):
+        """
+        get the vectors of the differential coordinates (see Fig.18)
+        Inputs:
+            hfList: half flap list (see self.getHalfFlap)
+            poolMats: vertex one-ring pooling matrix (see self.getFlapPool)
+            dofs: degrees of freedom per vertex (see self.getFlapPool)
+        """
+        LC = [None] * self.nM
+        for mIdx in range(self.nM):
+            V = self.meshes[mIdx][0].V
+            HF = hfList[mIdx][0]
+            poolMat = poolMats[mIdx][0]
+            dof = dofs[mIdx][0]
+            dV_he = V[HF[:, 0], :] - V[HF[:, 1], :]
+            dV_v = torch.spmm(poolMat, dV_he)
+            dV_v /= dof.unsqueeze(1)
+            LC[mIdx] = dV_v
+        return LC
+
+    def computeParameters(self):
+        """
+        pre-compute parameters required for network training. It includes:
+        hfList: list of half flaps
+        poolMats: vertex one-ring pooling
+        LCs: vector of differential coordinates
+        """
+        self.hfList = self.getHalfFlap()
+        self.poolMats, self.dofs = self.getFlapPool(self.hfList)
+        self.LCs = self.getLaplaceCoordinate(self.hfList, self.poolMats, self.dofs)
+
+    def toDevice(self, device):
+        """
+        move information to CPU/GPU
+        """
+        for ii in range(self.nM):
+            for jj in range(self.nS):
+                self.meshes[ii][jj].V = self.meshes[ii][jj].V.to(device)
+                self.meshes[ii][jj].F = self.meshes[ii][jj].F.to(device)
+        for ii in range(self.nM):
+            self.LCs[ii] = self.LCs[ii].to(device)
+            for jj in range(self.nS - 1):
+                self.hfList[ii][jj] = self.hfList[ii][jj].to(device)
+                self.poolMats[ii][jj] = self.poolMats[ii][jj].to(device)
+                self.dofs[ii][jj] = self.dofs[ii][jj].to(device)
+
+
 def random3DRotation():
     """
-    generate a random 3D rotation matrix just for testing 
+    generate a random 3D rotation matrix just for testing
     """
     theta_x = torch.rand(1) * 2 * np.pi
     sinx = torch.sin(theta_x)
@@ -490,4 +501,3 @@ def random3DRotation():
                        [sinz, cosz, 0.],
                        [0., 0., 1.]])
     return Rx.mm(Ry).mm(Rz)
-

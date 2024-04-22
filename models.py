@@ -1,5 +1,6 @@
 import torch
 
+import Laplacian2Mesh
 from include import *
 import diffusion_net
 
@@ -37,6 +38,7 @@ class SubdNet(torch.nn.Module):
     # This network consist of three MLPs (net_init, net_edge, net_vertex), and the forward pass is describe in the Section 5 of the paper
     def __init__(self, params):
         super(SubdNet, self).__init__()
+        self.device = params['device']
         Din = params['Din']  # input dimension
         Dout = params['Dout']  # output dimension
         self.useInit = bool(params['use_init'])
@@ -47,17 +49,17 @@ class SubdNet(torch.nn.Module):
         self.diff_dropout = params['diff_dropout']
         self.diff_method = params['diff_method']
 
-        # initialize three MLPs
-        self.diffNet = diffusion_net.layers.DiffusionNet(
-            C_in=self.diff_in,
-            C_out=self.diff_out,
-            C_width=self.diff_width,  # internal size of the diffusion net. 32 -- 512 is a reasonable range
-            # last_activation=lambda x: torch.nn.functional.log_softmax(x, dim=-1),  # apply a last softmax to outputs
-            dropout=self.diff_dropout,
-            # (set to default None to output general values in R^{N x C_out})
-            outputs_at='vertices',
-            N_block=self.diff_blocks,
-            diffusion_method=self.diff_method)
+        self.l2pNet = Laplacian2Mesh.l2p_net.Net(params['l2p_out'])
+        # self.diffNet = diffusion_net.layers.DiffusionNet(
+        #     C_in=self.diff_in,
+        #     C_out=self.diff_out,
+        #     C_width=self.diff_width,  # internal size of the diffusion net. 32 -- 512 is a reasonable range
+        #     # last_activation=lambda x: torch.nn.functional.log_softmax(x, dim=-1),  # apply a last softmax to outputs
+        #     dropout=self.diff_dropout,
+        #     # (set to default None to output general values in R^{N x C_out})
+        #     outputs_at='vertices',
+        #     N_block=self.diff_blocks,
+        #     diffusion_method=self.diff_method)
 
         if self.useInit:
             self.net_init = MLP(4 * Din - 3, params['h_initNet'], Dout)
@@ -211,20 +213,30 @@ class SubdNet(torch.nn.Module):
         Ve = self.halfEdgePool(Ve)
         return Ve
 
-    def forward(self, fv, faces, mIdx, HFs, poolMats, DOFs):
+    def forward(self, fv, faces, mIdx, HFs, poolMats, DOFs, train_dl):
         outputs = []
 
         # initialization step (figure 17 left)
         fv_input_pos = fv[:, :3]
-        verts = diffusion_net.geometry.normalize_positions(fv_input_pos)
-        frames, mass, L, evals, evecs, gradX, gradY = \
-            diffusion_net.geometry.get_operators(verts, faces, op_cache_dir='data/cache/')
-        hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13)
-        hksFeatures = torch.cat((fv[:, 3:], hksFeatures), dim=1)
+        # verts = diffusion_net.geometry.normalize_positions(fv_input_pos)
+        # frames, mass, L, evals, evecs, gradX, gradY = \
+        #     diffusion_net.geometry.get_operators(verts, faces, op_cache_dir='data/cache/')
+        # hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13)
+        # hksFeatures = torch.cat((fv[:, 3:], hksFeatures), dim=1)
+        #
+        # fDiff = self.diffNet(hksFeatures, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces.cpu())
+        for j, datas in enumerate(train_dl):
+            # load train data
+            level_0 = datas['levels'][0].to(self.device)
+            level_1 = datas['levels'][1].to(self.device)
+            level_2 = datas['levels'][2].to(self.device)
+            c_1 = datas['c'][0].to(self.device)
+            c_2 = datas['c'][1].to(self.device)
+            c_3 = datas['c'][2].to(self.device)
+            final_mat = datas['final_mat'].to(self.device)
 
-        fDiff = self.diffNet(hksFeatures, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces.cpu())
-
-        fhf, LFs = self.v2hf_initNet(torch.cat((fv, fDiff), 1), HFs[mIdx][0])
+        l2p_feat = self.l2pNet(level_0, level_1, level_2, c_1, c_2, c_3, final_mat)
+        fhf, LFs = self.v2hf_initNet(torch.cat((fv, l2p_feat.squeeze()), 1), HFs[mIdx][0])
         if self.useInit:
             fhf = self.net_init(fhf)
         fhf = self.local2Global(fhf, LFs)

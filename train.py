@@ -39,6 +39,7 @@ def main():
     T.computeParameters()
     T.toDevice(params["device"])
 
+    train_dl = Laplacian2Mesh.dataset.L2PDataset({"data_path": params["data_path"], "num_inputs": [512, 256, 64], "device": params["device"]})
     # initialize network
     def init_weights(m):
         if type(m) == torch.nn.Linear:
@@ -63,9 +64,9 @@ def main():
     validLossHis = []
     bestLoss = np.inf
     for epoch in range(params['epochs']):
-        # if epoch > 0 and epoch % 300 == 0:
+        # if epoch > 0 and epoch % 10000 == 0:
         #     for g in optimizer.param_groups:
-        #         g['lr'] = g['lr'] * 0.80
+        #         g['lr'] = g['lr'] * 0.90
 
         ts = time.time()
 
@@ -74,7 +75,7 @@ def main():
         for mIdx in range(S.nM):
             # forward pass
             x_faces = S.getInputData(mIdx)
-            outputs = net(x_faces[0], x_faces[1], mIdx, S.hfList, S.poolMats, S.dofs)
+            outputs = net(x_faces[0], x_faces[1], mIdx, S.hfList, S.poolMats, S.dofs, train_dl)
 
             # target mesh
             Vt = S.meshes[mIdx][params["numSubd"]].V.to(params['device'])
@@ -100,7 +101,7 @@ def main():
         validErr = 0.0
         for mIdx in range(T.nM):
             x_faces = T.getInputData(mIdx)
-            outputs = net(x_faces[0], x_faces[1], mIdx, T.hfList, T.poolMats, T.dofs)
+            outputs = net(x_faces[0], x_faces[1], mIdx, T.hfList, T.poolMats, T.dofs, train_dl)
 
             # target mesh
             Vt = T.meshes[mIdx][params["numSubd"]].V.to(params['device'])
@@ -145,7 +146,7 @@ def main():
     mIdx = 0
     x_faces = T.getInputData(mIdx)
     net.load_state_dict(torch.load(params['output_path'] + NETPARAMS))
-    outputs = net(x_faces[0], x_faces[1], mIdx, T.hfList, T.poolMats, T.dofs)
+    outputs = net(x_faces[0], x_faces[1], mIdx, T.hfList, T.poolMats, T.dofs, train_dl)
 
     # write unrotated outputs
     tgp.writeOBJ(params['output_path'] + str(mIdx) + '_oracle.obj', \

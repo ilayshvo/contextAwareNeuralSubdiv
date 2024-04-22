@@ -16,19 +16,20 @@ def create_experiment():
     diff_out = 61
 
     data = {
-        "wandb_project": "CANSubdiv-man-head",
+        "wandb_project": "L2P-CANSubdiv-man-head",
         "train_pkl": "./data_PKL/man_head_1_norm_train.pkl",
         "valid_pkl": "./data_PKL/man_head_1_norm_valid.pkl",
+        "data_path": "./data_meshes/man_head_1",
         "output_path": current_folder,
         "exp_name": exp_name + f"{counter:03d}",
-        "epochs": 50000,
+        "epochs": 15000,
         "lr": 2e-3,
         "device": 'cuda',
         "Din": diff_out + 6,
         "Dout": 31,
-        "h_initNet": [256] * 2,
-        "h_edgeNet": [256] * 2,
-        "h_vertexNet": [256] * 2,
+        "h_initNet": [256] * 10,
+        "h_edgeNet": [256] * 10,
+        "h_vertexNet": [256] * 10,
         "use_init": True,
         "numSubd": 2,
         "diff_in": 16,
@@ -36,7 +37,8 @@ def create_experiment():
         "diff_width": 56,
         "diff_dropout": False,
         "diff_blocks": 4,
-        "diff_method": "spectral"  # ['spectral', 'implicit_dense']
+        "diff_method": "spectral",  # ['spectral', 'implicit_dense']
+        "l2p_out": diff_out
     }
 
     # write hyper parameters into a json file

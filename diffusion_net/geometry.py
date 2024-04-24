@@ -429,17 +429,19 @@ def get_operators(verts, faces, k_eig=128, op_cache_dir=None, normals=None, over
     See documentation for compute_operators(). This essentailly just wraps a call to compute_operators, using a cache if possible.
     All arrays are always computed using double precision for stability, then truncated to single precision floats to store on disk, and finally returned as a tensor with dtype/device matching the `verts` input.
     """
-    # print(f"verts0: {verts[0]}")
     device = verts.device
     dtype = verts.dtype
     verts_np = toNP(verts)
-    # print(f"verts1: {verts_np[0]}")
     faces_np = toNP(faces)
     is_cloud = faces.numel() == 0
 
     if(np.isnan(verts_np).any()):
         raise RuntimeError("tried to construct operators from NaN verts")
 
+    if k_eig > verts.shape[0]:
+        print(
+            f"#choosen eigen values must be smaller than #vertices on lowest level. k_eig={k_eig} but there are {verts.shape[0]} vertices")
+        exit(1)
     # Check the cache directory
     # Note 1: Collisions here are exceptionally unlikely, so we could probably just use the hash...
     #         but for good measure we check values nonetheless.
@@ -469,16 +471,6 @@ def get_operators(verts, faces, k_eig=128, op_cache_dir=None, normals=None, over
                 cache_faces = npzfile["faces"]
                 cache_k_eig = npzfile["k_eig"].item()
 
-                # If the cache doesn't match, keep looking
-                # print("mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm")
-                # print(f"faces: {faces[0]}")
-                # print(f"faces_cache: {torch.tensor(cache_faces, device=device)[0]}")
-                # print(f"verts: {toNP(verts)[0]}")
-                # print(f"verts_cache: {cache_verts[0]}")
-                # if (np.array_equal(toNP(verts), cache_verts)):
-                #     print("verts equal")
-                # if (torch.equal(faces, torch.tensor(cache_faces, device=device))):
-                #     print("faces equal")
                 if (not np.array_equal(toNP(verts), cache_verts)) or (not torch.equal(faces, torch.tensor(cache_faces, device=device))):
                     i_cache_search += 1
                     print("hash collision! searching next.")
@@ -548,6 +540,7 @@ def get_operators(verts, faces, k_eig=128, op_cache_dir=None, normals=None, over
         frames, mass, L, evals, evecs, gradX, gradY = compute_operators(verts, faces, k_eig, normals=normals)
 
         dtype_np = np.float32
+
 
         # Store it in the cache
         if op_cache_dir is not None:

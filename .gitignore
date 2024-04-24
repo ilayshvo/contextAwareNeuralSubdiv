@@ -129,3 +129,13 @@ dmypy.json
 .pyre/
 
 data_PKL/*
+
+data/*
+data_meshes/*
+jobs/*
+wandb/
+
+.idea
+
+random_subdiv_remesh_bin
+subdiv_remesh_bin

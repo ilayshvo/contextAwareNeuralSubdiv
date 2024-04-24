@@ -46,6 +46,7 @@ class SubdNet(torch.nn.Module):
         self.diff_blocks = params['diff_blocks']
         self.diff_dropout = params['diff_dropout']
         self.diff_method = params['diff_method']
+        self.k_eig = params['diff_k_eig']
 
         # initialize three MLPs
         self.diffNet = diffusion_net.layers.DiffusionNet(
@@ -218,7 +219,7 @@ class SubdNet(torch.nn.Module):
         fv_input_pos = fv[:, :3]
         verts = diffusion_net.geometry.normalize_positions(fv_input_pos)
         frames, mass, L, evals, evecs, gradX, gradY = \
-            diffusion_net.geometry.get_operators(verts, faces, op_cache_dir='data/cache/')
+            diffusion_net.geometry.get_operators(verts, faces, self.k_eig, op_cache_dir='data/cache/')
         hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13)
         hksFeatures = torch.cat((fv[:, 3:], hksFeatures), dim=1)
 

@@ -129,12 +129,14 @@ def main():
             # create_gltf(outputs[-1].cpu(), T.meshes[0][-1].F.to('cpu'))
             wandb.log(
                 {"train loss": trainLossHis[-1], "valid loss": validLossHis[-1], "log loss": np.log10(validLossHis[-1]),
+                 "test log loss": np.log10(trainLossHis[-1])
                  # "lr": scheduler.get_last_lr(),
                  # "top_level_output": wandb.Object3D(open("output.glb", "r"))
                  })
         else:
             wandb.log(
                 {"train loss": trainLossHis[-1], "valid loss": validLossHis[-1], "log loss": np.log10(validLossHis[-1]),
+                 "test log loss": np.log10(trainLossHis[-1])
                  # "lr": scheduler.get_last_lr()
                  })
     # save loss history

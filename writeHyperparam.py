@@ -1,8 +1,9 @@
 import json
 import os
 
+
 def create_experiment():
-    exp_name = "hpc:"
+    exp_name = "#eig:"
     job_path = "./jobs/man_head_1/"
     exp_folder = job_path + "exp/"
     if not os.path.exists(exp_folder):
@@ -36,7 +37,8 @@ def create_experiment():
         "diff_width": 56,
         "diff_dropout": False,
         "diff_blocks": 4,
-        "diff_method": "spectral"  # ['spectral', 'implicit_dense']
+        "diff_method": "spectral",  # ['spectral', 'implicit_dense']
+        "diff_k_eig": 0  # must be smaller than amount of vertices in lowest level
     }
 
     # write hyper parameters into a json file
@@ -44,20 +46,21 @@ def create_experiment():
         json.dump(data, f, indent=4)
 
     print(data['output_path'])
-def main():
 
+
+def main():
     data = {
         "train_pkl": "./data_PKL/cartoon_elephant_train.pkl",
         "valid_pkl": "./data_PKL/cartoon_elephant_valid.pkl",
         "output_path": './jobs/net_cartoon_elephant/',
-        "epochs": 700, 
-        "lr": 2e-3, 
+        "epochs": 700,
+        "lr": 2e-3,
         "device": 'cuda',
         "Din": 6,
         "Dout": 32,
-        "h_initNet": [32,32],
-        "h_edgeNet": [32,32],
-        "h_vertexNet": [32,32],
+        "h_initNet": [32, 32],
+        "h_edgeNet": [32, 32],
+        "h_vertexNet": [32, 32],
         "numSubd": 2,
     }
 
@@ -68,6 +71,7 @@ def main():
     # write hyper parameters into a json file
     with open(data['output_path'] + 'hyperparameters.json', 'w') as f:
         json.dump(data, f)
+
 
 if __name__ == '__main__':
     # main()

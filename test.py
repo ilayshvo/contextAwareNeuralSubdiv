@@ -20,7 +20,7 @@ def main():
     folder = sys.argv[1]
     with open(folder + 'hyperparameters.json', 'r') as f:
         params = json.load(f)
-    params['numSubd'] = 2 # number of subdivision levels at test time
+    # params['numSubd'] = 2 # number of subdivision levels at test time
 
     print(os.path.basename(sys.argv[2]))
 
@@ -43,7 +43,7 @@ def main():
     scale = 1.0 # may need to adjust the scale of the mesh since the network is not scale invariant
     meshName = os.path.basename(sys.argv[2])[:-4] # meshName: "bunny"
     x = T.getInputData(mIdx)
-    outputs = net(x, mIdx,T.hfList,T.poolMats,T.dofs) 
+    outputs = net(x[0], x[1], mIdx,T.hfList,T.poolMats,T.dofs)
     for ii in range(len(outputs)):
         x = outputs[ii].cpu() * scale
         tgp.writeOBJ(params['output_path'] + meshName + '_subd' + str(ii) + '.obj',x, T.meshes[mIdx][ii].F.to('cpu'))

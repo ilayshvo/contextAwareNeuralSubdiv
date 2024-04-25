@@ -53,9 +53,9 @@ def main():
 
     dV = torch.rand(1, 3).to(params['device'])
     R = random3DRotation().to(params['device'])
-    x[:,:3] = x[:,:3].mm(R.t())
-    x[:,3:] = x[:,3:].mm(R.t())
-    x[:,:3] += dV
+    x[0][:,:3] = x[0][:,:3].mm(R.t())
+    x[0][:,3:] = x[0][:,3:].mm(R.t())
+    x[0][:,:3] += dV
     outputs = net(x, mIdx,T.hfList,T.poolMats,T.dofs) 
 
     for ii in range(len(outputs)):

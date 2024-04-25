@@ -21,7 +21,6 @@ def main():
     folder = sys.argv[1]
     with open(folder + 'hyperparameters.json', 'r') as f:
         params = json.load(f)
-    # params['numSubd'] = 2 # number of subdivision levels at test time
 
     print(os.path.basename(sys.argv[2]))
 

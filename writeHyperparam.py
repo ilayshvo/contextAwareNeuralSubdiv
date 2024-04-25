@@ -3,7 +3,7 @@ import os
 
 
 def create_experiment():
-    exp_name = "#eig:"
+    exp_name = "#mult_diff:"
     job_path = "./jobs/man_head_1/"
     exp_folder = job_path + "exp/"
     if not os.path.exists(exp_folder):
@@ -26,19 +26,21 @@ def create_experiment():
         "lr": 2e-3,
         "device": 'cuda',
         "Din": diff_out + 6,
-        "Dout": 31,
+        "Dout": 6,
         "h_initNet": [256] * 2,
         "h_edgeNet": [256] * 2,
         "h_vertexNet": [256] * 2,
-        "use_init": True,
+        "use_init": False,
         "numSubd": 2,
+        "multi_diff": True,
         "diff_in": 16,
         "diff_out": diff_out,
         "diff_width": 56,
         "diff_dropout": False,
         "diff_blocks": 4,
         "diff_method": "spectral",  # ['spectral', 'implicit_dense']
-        "diff_k_eig": 0  # must be smaller than amount of vertices in lowest level
+        "diff_k_eig": 0,  # must be smaller than amount of vertices in lowest level
+        "wandb_log": True
     }
 
     # write hyper parameters into a json file

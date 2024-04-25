@@ -245,8 +245,7 @@ def build_grad(verts, edges, edge_tangent_vectors):
 
             edge_vec = edge_tangent_vectors[iE][:].cpu()
             w_e = 1.
-
-            lhs_mat[i_neigh][:] = w_e * edge_vec
+            lhs_mat[i_neigh][:] = w_e * edge_vec.detach()
             rhs_mat[i_neigh][0] = w_e * (-1)
             rhs_mat[i_neigh][i_neigh + 1] = w_e * 1
 

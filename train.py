@@ -21,13 +21,14 @@ def main():
         params = json.load(f)
         print(f'Parameters: {params}')
 
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project=params["wandb_project"],
-        name=params["exp_name"],
-        # track hyperparameters and run metadata
-        config=params
-    )
+    if params["wandb_log"]:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project=params["wandb_project"],
+            name=params["exp_name"],
+            # track hyperparameters and run metadata
+            config=params
+        )
 
     # load traininig data
     S = pickle.load(open(params["train_pkl"], "rb"))
@@ -49,7 +50,8 @@ def main():
     net.apply(init_weights)
     total_params = sum(p.numel() for p in net.parameters())
     print(f'#params: {total_params}')
-    wandb.watch(net)
+    if params["wandb_log"]:
+        wandb.watch(net)
 
     # loss function
     lossFunc = torch.nn.MSELoss().to(params['device'])
@@ -123,22 +125,23 @@ def main():
 
         print("epoch %d, train loss %.6e, valid loss %.6e, remain time: %s" % (
         epoch, trainLossHis[-1], validLossHis[-1], int(round((params['epochs'] - epoch) * (time.time() - ts)))))
-        if epoch % 100 == 0:
-            # VN = vertexNormals(outputs[-1].cpu(), T.meshes[0][-1].F.to('cpu'))
-            # tgp.writeOBJWithNormals("temp.obj", outputs[-1].cpu(), T.meshes[0][-1].F.to('cpu'), VN)
-            # create_gltf(outputs[-1].cpu(), T.meshes[0][-1].F.to('cpu'))
-            wandb.log(
-                {"train loss": trainLossHis[-1], "valid loss": validLossHis[-1], "log loss": np.log10(validLossHis[-1]),
-                 "test log loss": np.log10(trainLossHis[-1])
-                 # "lr": scheduler.get_last_lr(),
-                 # "top_level_output": wandb.Object3D(open("output.glb", "r"))
-                 })
-        else:
-            wandb.log(
-                {"train loss": trainLossHis[-1], "valid loss": validLossHis[-1], "log loss": np.log10(validLossHis[-1]),
-                 "test log loss": np.log10(trainLossHis[-1])
-                 # "lr": scheduler.get_last_lr()
-                 })
+        if params["wandb_log"]:
+            if epoch % 100 == 0:
+                # VN = vertexNormals(outputs[-1].cpu(), T.meshes[0][-1].F.to('cpu'))
+                # tgp.writeOBJWithNormals("temp.obj", outputs[-1].cpu(), T.meshes[0][-1].F.to('cpu'), VN)
+                # create_gltf(outputs[-1].cpu(), T.meshes[0][-1].F.to('cpu'))
+                wandb.log(
+                    {"train loss": trainLossHis[-1], "valid loss": validLossHis[-1], "log loss": np.log10(validLossHis[-1]),
+                     "test log loss": np.log10(trainLossHis[-1])
+                     # "lr": scheduler.get_last_lr(),
+                     # "top_level_output": wandb.Object3D(open("output.glb", "r"))
+                     })
+            else:
+                wandb.log(
+                    {"train loss": trainLossHis[-1], "valid loss": validLossHis[-1], "log loss": np.log10(validLossHis[-1]),
+                     "test log loss": np.log10(trainLossHis[-1])
+                     # "lr": scheduler.get_last_lr()
+                     })
     # save loss history
     np.savetxt(params['output_path'] + 'train_loss.txt', np.array(trainLossHis), delimiter=',')
     np.savetxt(params['output_path'] + 'valid_loss.txt', np.array(validLossHis), delimiter=',')

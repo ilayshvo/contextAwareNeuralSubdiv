@@ -59,6 +59,7 @@ class SubdNet(torch.nn.Module):
             outputs_at='vertices',
             N_block=self.diff_blocks,
             diffusion_method=self.diff_method)
+        self.add_module("diff_net", self.diffNet)
 
         if self.useInit:
             self.net_init = MLP(4 * Din - 3, params['h_initNet'], Dout)

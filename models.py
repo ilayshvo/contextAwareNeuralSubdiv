@@ -50,29 +50,29 @@ class SubdNet(torch.nn.Module):
         self.multi_diff = params['multi_diff']
         self.wandb_log = params['wandb_log']
 
-        if not self.multi_diff:
-            self.net_diff = diffusion_net.layers.DiffusionNet(
-                C_in=self.diff_in,
-                C_out=self.diff_out,
-                C_width=self.diff_width,  # internal size of the diffusion net. 32 -- 512 is a reasonable range
-                # last_activation=lambda x: torch.nn.functional.log_softmax(x, dim=-1),  # apply a last softmax to outputs
-                dropout=self.diff_dropout,
-                # (set to default None to output general values in R^{N x C_out})
-                outputs_at='vertices',
-                N_block=self.diff_blocks,
-                diffusion_method=self.diff_method)
-            self.add_module("diff_net", self.net_diff)
-            if self.useInit:
-                self.net_init = MLP(4 * Din - 3, params['h_initNet'], Dout)
-                self.add_module("net_init", self.net_init)
-        else:
-            self.net_diff = []
-            self.net_init = []
+        # if not self.multi_diff:
+        #     self.net_diff = diffusion_net.layers.DiffusionNet(
+        #         C_in=self.diff_in,
+        #         C_out=self.diff_out,
+        #         C_width=self.diff_width,  # internal size of the diffusion net. 32 -- 512 is a reasonable range
+        #         # last_activation=lambda x: torch.nn.functional.log_softmax(x, dim=-1),  # apply a last softmax to outputs
+        #         dropout=self.diff_dropout,
+        #         # (set to default None to output general values in R^{N x C_out})
+        #         outputs_at='vertices',
+        #         N_block=self.diff_blocks,
+        #         diffusion_method=self.diff_method)
+        #     self.add_module("diff_net", self.net_diff)
+        #     if self.useInit:
+        #         self.net_init = MLP(4 * Din - 3, params['h_initNet'], Dout)
+        #         self.add_module("net_init", self.net_init)
+        # else:
+        self.net_diff = []
+        self.net_init = []
 
         self.net_edge = []
         self.net_vertex = []
         for i in range(params["numSubd"]):
-            if self.multi_diff:
+            if self.multi_diff or i == 0:
                 self.net_diff.append(diffusion_net.layers.DiffusionNet(
                     C_in=self.diff_in,
                     C_out=self.diff_out,

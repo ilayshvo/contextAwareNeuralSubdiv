@@ -49,19 +49,19 @@ def main():
         tgp.writeOBJ(params['output_path'] + meshName + '_subd' + str(ii) + '.obj', x, T.meshes[mIdx][ii].F.to('cpu'))
 
     # write rotated output shapes
-    x = T.getInputData(mIdx)
-
-    dV = torch.rand(1, 3).to(params['device'])
-    R = random3DRotation().to(params['device'])
-    x[0][:, :3] = x[0][:, :3].mm(R.t())
-    x[0][:, 3:] = x[0][:, 3:].mm(R.t())
-    x[0][:, :3] += dV
-    outputs = net(x[0], x[1], mIdx, T.hfList, T.poolMats, T.dofs)
-
-    for ii in range(len(outputs)):
-        x = outputs[ii].cpu() * scale
-        tgp.writeOBJ(params['output_path'] + meshName + '_rot_subd' + str(ii) + '.obj', x,
-                     T.meshes[mIdx][ii].F.to('cpu'))
+    # x = T.getInputData(mIdx)
+    #
+    # dV = torch.rand(1, 3).to(params['device'])
+    # R = random3DRotation().to(params['device'])
+    # x[0][:, :3] = x[0][:, :3].mm(R.t())
+    # x[0][:, 3:] = x[0][:, 3:].mm(R.t())
+    # x[0][:, :3] += dV
+    # outputs = net(x[0], x[1], mIdx, T.hfList, T.poolMats, T.dofs)
+    #
+    # for ii in range(len(outputs)):
+    #     x = outputs[ii].cpu() * scale
+    #     tgp.writeOBJ(params['output_path'] + meshName + '_rot_subd' + str(ii) + '.obj', x,
+    #                  T.meshes[mIdx][ii].F.to('cpu'))
 
 
 if __name__ == '__main__':

@@ -11,14 +11,14 @@ def main():
     # mesh_folders = ['./data_meshes/bunny/', './data_meshes/rockerArm/', './data_meshes/fertility/']
     S = TrainMeshes(mesh_folders)
 
-    pickle.dump(S, file=open("./data_PKL/coseg_aliens_30_valid.pkl", "wb"))
+    pickle.dump(S, file=open("./data_PKL/coseg_aliens_30_train.pkl", "wb"))
 
     # training PKL
     mesh_folders = ['./data_meshes/coseg_aliens_30_test/']
     # mesh_folders = ['./data_meshes/bunny/', './data_meshes/rockerArm/', './data_meshes/fertility/']
     S = TrainMeshes(mesh_folders)
 
-    pickle.dump(S, file=open("./data_PKL/coseg_aliens_30_train.pkl", "wb"))
+    pickle.dump(S, file=open("./data_PKL/coseg_aliens_30_test.pkl", "wb"))
 
 
 if __name__ == '__main__':

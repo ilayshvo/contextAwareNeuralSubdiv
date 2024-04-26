@@ -254,24 +254,26 @@ class SubdNet(torch.nn.Module):
 
         # subdivision starts
         for ii in range(self.numSubd):
-            fv_input_pos = fv[:, :3]
-            verts = diffusion_net.geometry.normalize_positions(fv_input_pos)
-            frames, mass, L, evals, evecs, gradX, gradY = \
-                diffusion_net.geometry.get_operators(verts.clone().cpu(), faces.clone().cpu(), self.k_eig, op_cache_dir=None)
-            hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13)
-            # print(fv.device)
-            # print(hksFeatures.to(fv.device).device)
-            hksFeatures = torch.cat((fv[:, 3:], hksFeatures.to(fv.device)), dim=1)
-            fDiff = self.net_diff[ii](hksFeatures.to(fv.device), mass.to(fv.device), L=L.to(fv.device), evals=evals.to(fv.device), evecs=evecs.to(fv.device), gradX=gradX.to(fv.device), gradY=gradY.to(fv.device),
-                                  faces=faces.to(fv.device))
+            if self.multi_diff or ii == 0:
+                fv_input_pos = fv[:, :3]
+                verts = diffusion_net.geometry.normalize_positions(fv_input_pos)
+                frames, mass, L, evals, evecs, gradX, gradY = \
+                    diffusion_net.geometry.get_operators(verts.clone().cpu(), faces.clone().cpu(), self.k_eig, op_cache_dir=None)
+                hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13)
+                # print(fv.device)
+                # print(hksFeatures.to(fv.device).device)
+                hksFeatures = torch.cat((fv[:, 3:], hksFeatures.to(fv.device)), dim=1)
+                fDiff = self.net_diff[ii](hksFeatures.to(fv.device), mass.to(fv.device), L=L.to(fv.device), evals=evals.to(fv.device), evecs=evecs.to(fv.device), gradX=gradX.to(fv.device), gradY=gradY.to(fv.device),
+                                      faces=faces.to(fv.device))
 
-            fhf, LFs = self.v2hf_initNet(torch.cat((fv, fDiff), 1), HFs[mIdx][ii])
-            fhf = self.net_init[ii](fhf)
-            fhf = self.local2Global(fhf, LFs)
-            fv = self.oneRingPool(fhf, poolMats[mIdx][ii], DOFs[mIdx][ii])
-            fv[:, :3] += fv_input_pos
+                fhf, LFs = self.v2hf_initNet(torch.cat((fv, fDiff), 1), HFs[mIdx][ii])
+                fhf = self.net_init[ii](fhf)
+                fhf = self.local2Global(fhf, LFs)
+                fv = self.oneRingPool(fhf, poolMats[mIdx][ii], DOFs[mIdx][ii])
+                fv[:, :3] += fv_input_pos
 
-            outputs.append(fv[:, :3])
+            if ii == 0:
+                outputs.append(fv[:, :3])
 
             # vertex step (figure 17 middle)
             prevPos = fv[:, :3]

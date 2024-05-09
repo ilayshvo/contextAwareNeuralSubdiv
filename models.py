@@ -48,6 +48,7 @@ class SubdNet(torch.nn.Module):
         self.diff_method = params['diff_method']
         self.k_eig = params['diff_k_eig']
         self.multi_diff = params['multi_diff']
+        self.verts_as_feature = params['verts_as_feature']
         self.wandb_log = params['wandb_log']
 
         # if not self.multi_diff:
@@ -259,10 +260,11 @@ class SubdNet(torch.nn.Module):
                 verts = diffusion_net.geometry.normalize_positions(fv_input_pos)
                 frames, mass, L, evals, evecs, gradX, gradY = \
                     diffusion_net.geometry.get_operators(verts.clone().cpu(), faces.clone().cpu(), self.k_eig, op_cache_dir=None)
-                hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13)
+                hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13 + 3 * (not self.verts_as_feature))
                 # print(fv.device)
                 # print(hksFeatures.to(fv.device).device)
-                hksFeatures = torch.cat((fv[:, 3:], hksFeatures.to(fv.device)), dim=1)
+                if self.verts_as_feature:
+                    hksFeatures = torch.cat((fv[:, 3:], hksFeatures.to(fv.device)), dim=1)
                 fDiff = self.net_diff[ii](hksFeatures.to(fv.device), mass.to(fv.device), L=L.to(fv.device), evals=evals.to(fv.device), evecs=evecs.to(fv.device), gradX=gradX.to(fv.device), gradY=gradY.to(fv.device),
                                       faces=faces.to(fv.device))
 

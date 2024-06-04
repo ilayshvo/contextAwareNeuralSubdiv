@@ -4,6 +4,7 @@ from include import *
 import diffusion_net
 
 
+
 class MLP(torch.nn.Module):
     # This is the MLP template for the Initialization, Vertex, Edge networks (see Table 2 in the appendix)
     def __init__(self, Din, Dhid, Dout):
@@ -48,6 +49,7 @@ class SubdNet(torch.nn.Module):
         self.diff_method = params['diff_method']
         self.k_eig = params['diff_k_eig']
         self.multi_diff = params['multi_diff']
+        self.same_nets = params['same_nets']
         self.verts_as_feature = params['verts_as_feature']
         self.wandb_log = params['wandb_log']
 
@@ -91,6 +93,8 @@ class SubdNet(torch.nn.Module):
             self.add_module("net_edge_" + str(i), self.net_edge[-1])
             self.net_vertex.append(MLP(4 * Dout - 3, params['h_vertexNet'], Dout))
             self.add_module("net_vertex_" + str(i), self.net_vertex[-1])
+            if self.same_nets:
+                break
 
 
         self.pool = torch.nn.AvgPool2d((2, 1))  # half-edge pool
@@ -260,16 +264,35 @@ class SubdNet(torch.nn.Module):
                 verts = diffusion_net.geometry.normalize_positions(fv_input_pos)
                 frames, mass, L, evals, evecs, gradX, gradY = \
                     diffusion_net.geometry.get_operators(verts.clone().cpu(), faces.clone().cpu(), self.k_eig, op_cache_dir=None)
-                hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 13 + 3 * (not self.verts_as_feature))
+                if ii == 0:
+                    hksFeatures = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, self.diff_out)
+                    # print(f"hksFeatures: {hksFeatures}, shape: {hksFeatures.shape}")
+                else:
+                    hksFeatures = fv[:, 6:]
+                # print(frames, mass, L, evals, evecs, gradX, gradY)
+                # print(f"frames: {frames}")
+                # print(f"mass: {mass}")
+                # print(f"L: {L}")
+                # print(f"evals: {evals}")
+                # print(f"evecs: {evecs}")
+                # print(f"gradX: {gradX}")
+                # print(f"gradY: {gradY}")
+                # exit()
                 # print(fv.device)
                 # print(hksFeatures.to(fv.device).device)
-                if self.verts_as_feature:
-                    hksFeatures = torch.cat((fv[:, 3:], hksFeatures.to(fv.device)), dim=1)
-                fDiff = self.net_diff[ii](hksFeatures.to(fv.device), mass.to(fv.device), L=L.to(fv.device), evals=evals.to(fv.device), evecs=evecs.to(fv.device), gradX=gradX.to(fv.device), gradY=gradY.to(fv.device),
-                                      faces=faces.to(fv.device))
-
-                fhf, LFs = self.v2hf_initNet(torch.cat((fv, fDiff), 1), HFs[mIdx][ii])
-                fhf = self.net_init[ii](fhf)
+                # if self.verts_as_feature:
+                #     hksFeatures = torch.cat((fv[:, 3:], hksFeatures.to(fv.device)), dim=1)
+                # print(f"level: {ii}, hks hsape: {hksFeatures.shape}")
+                fDiff = self.net_diff[ii if not self.same_nets else 0](hksFeatures.to(fv.device), mass.to(fv.device), L=L.to(fv.device), evals=evals.to(fv.device), evecs=evecs.to(fv.device), gradX=gradX.to(fv.device), gradY=gradY.to(fv.device),
+                                          faces=faces.to(fv.device))
+                # print(f"fDiff: {fDiff.shape}")
+                # print(f"fDiff: {fv.shape}")
+                # print(ii)
+                fhf, LFs = self.v2hf_initNet(torch.cat((fv[:, :6], fDiff), 1), HFs[mIdx][ii])
+                # print(f"fv shape: {fv.shape}")
+                # print(f"fDiff shape: {fDiff.shape}")
+                # print(f"level: {ii}, fhf: {fhf.shape}")
+                fhf = self.net_init[ii if not self.same_nets else 0](fhf)
                 fhf = self.local2Global(fhf, LFs)
                 fv = self.oneRingPool(fhf, poolMats[mIdx][ii], DOFs[mIdx][ii])
                 fv[:, :3] += fv_input_pos
@@ -280,7 +303,7 @@ class SubdNet(torch.nn.Module):
             # vertex step (figure 17 middle)
             prevPos = fv[:, :3]
             fhf, LFs = self.v2hf(fv, HFs[mIdx][ii])  # 2*nE x 4*Dout
-            fhf = self.net_vertex[ii](fhf)
+            fhf = self.net_vertex[ii if not self.same_nets else 0](fhf)
             fhf = self.local2Global(fhf, LFs)
             fv = self.oneRingPool(fhf, poolMats[mIdx][ii], DOFs[mIdx][ii])
             fv[:, :3] += prevPos
@@ -289,13 +312,14 @@ class SubdNet(torch.nn.Module):
             # edge step (figure 17 right)
             Ve = self.edgeMidPoint(fv, HFs[mIdx][ii])  # compute mid point
             fhf, LFs = self.v2hf(fv, HFs[mIdx][ii])  # 2*nE x 4*Dout
-            fv_odd = self.net_edge[ii](fhf)  # 2*nE x Dout
+            fv_odd = self.net_edge[ii if not self.same_nets else 0](fhf)  # 2*nE x Dout
             fv_odd = self.local2Global(fv_odd, LFs)
             fv_odd = self.halfEdgePool(fv_odd)  # nE x Dout
             fv_odd[:, :3] += Ve
 
             # concatenate results
             fv = torch.cat((fv_even, fv_odd), dim=0)  # nV_next x Dout
+            # print(f"end level {ii}: fv.shape: {fv.shape}")
             outputs.append(fv[:, :3])
 
         return outputs

@@ -583,6 +583,8 @@ def to_basis(values, basis, massvec):
       - (B,K,D) transformed values
     """
     basisT = basis.transpose(-2, -1)
+    # print("values: ", values.shape)
+    # print("massvec: ", massvec.unsqueeze(-1).shape)
     return torch.matmul(basisT, values * massvec.unsqueeze(-1))
 
 

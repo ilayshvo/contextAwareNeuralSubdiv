@@ -3,8 +3,8 @@ import os
 
 
 def create_experiment():
-    exp_name = "#mult_diff:"
-    job_path = "./jobs/man_head_1/"
+    exp_name = "Multi-Nets"
+    job_path = "./jobs/combined/"
     exp_folder = job_path + "exp/"
     if not os.path.exists(exp_folder):
         os.makedirs(exp_folder)
@@ -14,32 +14,34 @@ def create_experiment():
     current_folder = exp_folder + f"{counter:03d}" + "/"
     os.makedirs(current_folder)
 
-    diff_out = 61
+    diff_out = 128
 
     data = {
-        "wandb_project": "CANSubdiv-man-head",
-        "train_pkl": "./data_PKL/man_head_1_norm_train.pkl",
-        "valid_pkl": "./data_PKL/man_head_1_norm_valid.pkl",
+        "wandb_project": "combined",
+        "train_pkl": "./data_PKL/fat_dragon_1_train.pkl",
+        "valid_pkl": "./data_PKL/fat_dragon_1_train.pkl",
         "output_path": current_folder,
         "exp_name": exp_name + f"{counter:03d}",
-        "epochs": 50000,
-        "lr": 2e-3,
+        "epochs": 5000,
+        "lr": 1e-20,
         "device": 'cuda',
         "Din": diff_out + 6,
-        "Dout": 6,
-        "h_initNet": [256] * 2,
-        "h_edgeNet": [256] * 2,
-        "h_vertexNet": [256] * 2,
+        "Dout": diff_out + 6,
+        "h_initNet": [128] * 2,
+        "h_edgeNet": [128] * 2,
+        "h_vertexNet": [128] * 2,
         "use_init": False,
-        "numSubd": 2,
+        "numSubd": 4,
         "multi_diff": True,
-        "diff_in": 16,
+        "same_nets": False,
+        "diff_in": diff_out,
         "diff_out": diff_out,
         "diff_width": 56,
         "diff_dropout": False,
         "diff_blocks": 4,
         "diff_method": "spectral",  # ['spectral', 'implicit_dense']
-        "diff_k_eig": 0,  # must be smaller than amount of vertices in lowest level
+        "diff_k_eig": 50,  # must be smaller than amount of vertices in lowest level
+        "verts_as_feature": False,
         "wandb_log": True
     }
 
